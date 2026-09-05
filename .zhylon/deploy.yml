@@ -1,0 +1,60 @@
+version: 1
+name: "TobyMaxham Software Packages"
+
+on:
+  push:
+    branches: [main]
+  manual: true
+
+zhylon:
+  project: "my-packages"
+  type: laravel
+
+environments:
+  production:
+    branch: main
+    servers:
+      tags: ["production", "api"]
+    release:
+      keep: 3
+
+    build:
+      steps:
+        - name: "Install Composer Dependencies"
+          run: composer install --no-dev --optimize-autoloader
+        - name: "Install Node Dependencies"
+          run: npm ci
+        - name: "Build Assets"
+          run: npm run build
+
+    deploy:
+      steps:
+        - name: "Run Migrations"
+          run: php artisan migrate --force
+        - name: "Clear Caches"
+          run: php artisan optimize:clear
+        - name: "Optimize"
+          run: php artisan optimize
+        - name: "Restart Queue"
+          run: php artisan queue:restart
+          optional: true
+        - name: "Rescan Packages"
+          run: php artisan packages:scan-all
+
+    healthcheck:
+      url: null
+      timeout: 10
+      interval: 5m
+      retries: 5
+
+    rollback:
+      enabled: true
+      on: healthcheck_failed
+
+    notifications:
+      slack:
+        on:
+          - failure
+      discord:
+        on:
+          - failure
