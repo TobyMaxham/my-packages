@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\PackageExportController;
 use App\Http\Controllers\Api\PackageController;
 use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\VendorController;
@@ -14,3 +15,7 @@ Route::get('/packages', [PackageController::class, 'index'])->name('api.packages
 Route::get('/packages/{package}', [PackageController::class, 'show'])->name('api.packages.show');
 Route::get('/vendors', [VendorController::class, 'index'])->name('api.vendors.index');
 Route::get('/stats', [StatsController::class, 'index'])->name('api.stats.index');
+
+Route::get('/admin/packages/export', [PackageExportController::class, 'index'])
+    ->middleware('auth:sanctum')
+    ->name('api.admin.packages.export');

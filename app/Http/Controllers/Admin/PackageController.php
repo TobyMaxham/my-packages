@@ -40,9 +40,30 @@ class PackageController extends Controller
             'featured_note' => $validated['featured_note'] ?? null,
         ]);
 
+        return $this->backToIndex($request)->with('status', "\"{$package->name}\" wurde aktualisiert.");
+    }
+
+    /**
+     * Quick one-click favorite toggle — deliberately ignores the rest of the
+     * submitted form (e.g. an in-progress, unsaved featured_note edit) and
+     * only flips the current is_featured value.
+     */
+    public function toggleFeatured(Request $request, Package $package): RedirectResponse
+    {
+        $package->update(['is_featured' => ! $package->is_featured]);
+
+        $message = $package->is_featured
+            ? "\"{$package->name}\" ist jetzt favorisiert."
+            : "\"{$package->name}\" ist nicht mehr favorisiert.";
+
+        return $this->backToIndex($request)->with('status', $message);
+    }
+
+    private function backToIndex(Request $request): RedirectResponse
+    {
         return Redirect::route('admin.packages.index', array_filter([
             'search' => $request->input('search'),
             'page' => $request->input('page'),
-        ]))->with('status', "\"{$package->name}\" wurde aktualisiert.");
+        ]));
     }
 }

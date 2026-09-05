@@ -13,13 +13,26 @@
         }
         .pkg-grid-header { font-weight: 600; font-size: 0.85rem; color: #5b6270; }
         .pkg-grid-row textarea { width: 100%; box-sizing: border-box; font: inherit; }
+        .pkg-name-cell { display: flex; align-items: center; gap: 0.5rem; }
+        button[type="submit"].star-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+            line-height: 1;
+            padding: 0;
+            color: #a1670f;
+        }
 @endpush
 
 @section('content')
-    <form method="GET" action="{{ route('admin.packages.index') }}" style="margin-bottom: 1.5rem;">
-        <input type="text" name="search" value="{{ $search }}" placeholder="Paket suchen …">
-        <button type="submit">Suchen</button>
-    </form>
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+        <form method="GET" action="{{ route('admin.packages.index') }}" style="display: flex; gap: 0.5rem;">
+            <input type="text" name="search" value="{{ $search }}" placeholder="Paket suchen …">
+            <button type="submit">Suchen</button>
+        </form>
+        <a href="{{ route('api.admin.packages.export') }}" target="_blank" rel="noopener">Export als JSON &#8599;</a>
+    </div>
 
     <div class="pkg-grid-header">
         <div>Paket</div>
@@ -32,11 +45,18 @@
     @forelse ($packages as $package)
         <form method="POST" action="{{ route('admin.packages.update', $package) }}" class="pkg-grid-row">
             @csrf
-            @method('PATCH')
             <input type="hidden" name="search" value="{{ $search }}">
             <input type="hidden" name="page" value="{{ $packages->currentPage() }}">
 
-            <div>{{ $package->name }}</div>
+            <div class="pkg-name-cell">
+                <button
+                    type="submit"
+                    formaction="{{ route('admin.packages.toggle-featured', $package) }}"
+                    class="star-btn"
+                    title="{{ $package->is_featured ? 'Favorit entfernen' : 'Als Favorit markieren' }}"
+                >{{ $package->is_featured ? '★' : '☆' }}</button>
+                {{ $package->name }}
+            </div>
             <div>{{ $package->vendor?->name ?? '—' }}</div>
             <div>
                 <input type="checkbox" name="is_featured" value="1" @checked($package->is_featured)>
@@ -53,6 +73,6 @@
     @endforelse
 
     <div style="margin-top: 1.5rem;">
-        {{ $packages->links() }}
+        {{ $packages->links('admin.pagination') }}
     </div>
 @endsection

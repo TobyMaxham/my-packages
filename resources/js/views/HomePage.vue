@@ -68,9 +68,10 @@ onMounted(() => {
 <template>
   <div class="pr-utility-bar">
     <div class="container pr-utility-bar-row">
-      <button v-if="auth.isLoggedIn" type="button" class="pr-login-link" @click="handleLogout">
-        Logout
-      </button>
+      <template v-if="auth.isLoggedIn">
+        <a class="pr-login-link" href="/admin/vendors">Admin</a>
+        <button type="button" class="pr-login-link" @click="handleLogout">Logout</button>
+      </template>
       <RouterLink v-else class="pr-login-link" to="/login">Login</RouterLink>
     </div>
   </div>

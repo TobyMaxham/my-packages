@@ -48,6 +48,8 @@
 .pr-utility-bar-row {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 1.25rem;
   padding: 0.6rem 0;
 }
 .pr-login-link {

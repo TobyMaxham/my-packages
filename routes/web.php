@@ -19,7 +19,8 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::post('/vendors/{vendor}/rescan', [AdminVendorController::class, 'rescan'])->name('vendors.rescan');
 
     Route::get('/packages', [AdminPackageController::class, 'index'])->name('packages.index');
-    Route::patch('/packages/{package}', [AdminPackageController::class, 'update'])->name('packages.update');
+    Route::post('/packages/{package}', [AdminPackageController::class, 'update'])->name('packages.update');
+    Route::post('/packages/{package}/toggle-featured', [AdminPackageController::class, 'toggleFeatured'])->name('packages.toggle-featured');
 });
 
 // The Package Compatibility Dashboard is a Vue SPA (routes: /, /packages, /login).
