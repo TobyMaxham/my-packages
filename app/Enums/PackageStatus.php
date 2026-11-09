@@ -17,9 +17,9 @@ enum PackageStatus: string
     public static function legend(): array
     {
         return [
-            self::Compatible->value => 'Neueste Version erfüllt die Ziel-Constraints.',
-            self::Unclear->value => 'Erfüllt Ziel-Constraints nicht, aber Release ist jünger als 12 Monate und nicht abandoned.',
-            self::Critical->value => 'Erfüllt Ziel-Constraints nicht UND (Release älter als 12 Monate ODER abandoned).',
+            self::Compatible->value => 'Neueste Version erlaubt alle required- und recommended-Zielversionen und ist nicht abandoned.',
+            self::Unclear->value => 'Nicht abandoned und entweder: required-Zielversion fehlt, aber Release ist jünger als 12 Monate; oder: alle required erlaubt, aber eine recommended-Zielversion fehlt.',
+            self::Critical->value => 'Abandoned ODER (required-Zielversion fehlt UND Release älter als 12 Monate).',
         ];
     }
 }

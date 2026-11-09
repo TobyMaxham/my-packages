@@ -18,8 +18,8 @@ it('rejects guests with a 401', function () {
 
 it('returns the full export envelope for authenticated requests', function () {
     config([
-        'package_targets.php' => '8.4',
-        'package_targets.laravel' => ['12', '13'],
+        'package_targets.php' => ['required' => ['8.4'], 'recommended' => []],
+        'package_targets.laravel' => ['required' => ['12'], 'recommended' => ['13']],
     ]);
 
     Sanctum::actingAs(User::factory()->create(), ['*']);
@@ -29,7 +29,10 @@ it('returns the full export envelope for authenticated requests', function () {
     $response->assertOk();
     expect($response->json())
         ->toHaveKeys(['generated_at', 'target_versions', 'status_legend', 'packages'])
-        ->and($response->json('target_versions'))->toBe(['php' => '8.4', 'laravel' => ['12', '13']])
+        ->and($response->json('target_versions'))->toBe([
+            'php' => ['required' => ['8.4'], 'recommended' => []],
+            'laravel' => ['required' => ['12'], 'recommended' => ['13']],
+        ])
         ->and($response->json('status_legend'))->toBe(PackageStatus::legend());
 });
 

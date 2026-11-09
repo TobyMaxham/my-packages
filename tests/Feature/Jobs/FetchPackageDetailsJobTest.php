@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
     config([
-        'package_targets.php' => '8.4',
-        'package_targets.laravel' => ['12', '13'],
+        'package_targets.php' => ['required' => ['8.4'], 'recommended' => []],
+        'package_targets.laravel' => ['required' => ['12'], 'recommended' => ['13']],
     ]);
 });
 
@@ -34,6 +34,27 @@ it('syncs composer package details from packagist', function () {
                 ],
             ],
         ]),
+        'https://repo.packagist.org/p2/acme/widget.json' => Http::response([
+            'minified' => 'composer/2.0',
+            'packages' => [
+                'acme/widget' => [
+                    [
+                        'version' => 'v2.0.0',
+                        'description' => 'A better widget',
+                        'require' => ['php' => '^8.3', 'laravel/framework' => '^12.0|^13.0'],
+                        'time' => '2026-02-01T00:00:00+00:00',
+                        'keywords' => ['widget', 'laravel'],
+                    ],
+                    [
+                        'version' => 'v1.2.0',
+                        'description' => 'A widget',
+                        'require' => ['php' => '^8.2', 'laravel/framework' => '^11.0'],
+                        'time' => '2026-01-01T00:00:00+00:00',
+                        'keywords' => '__unset',
+                    ],
+                ],
+            ],
+        ]),
     ]);
 
     $package = Package::factory()->for(Vendor::factory()->composer())->create([
@@ -44,12 +65,44 @@ it('syncs composer package details from packagist', function () {
     app()->call([new FetchPackageDetailsJob($package), 'handle']);
 
     expect($package->fresh())
-        ->description->toBe('A widget')
-        ->latest_version->toBe('v1.2.0')
+        ->description->toBe('A better widget')
+        ->latest_version->toBe('v2.0.0')
+        ->framework_constraint->toBe('^12.0|^13.0')
         ->downloads_total->toBe(100)
         ->favers->toBe(5)
-        ->tags->toBe(['widget'])
-        ->status->toBe(PackageStatus::Unclear);
+        ->tags->toBe(['widget', 'laravel'])
+        ->status->toBe(PackageStatus::Compatible);
+});
+
+it('falls back to the package details versions when the v2 metadata endpoint fails', function () {
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://packagist.org/packages/acme/widget.json' => Http::response([
+            'package' => [
+                'description' => 'A widget',
+                'versions' => [
+                    'v1.2.0' => [
+                        'version' => 'v1.2.0',
+                        'require' => ['php' => '^8.2', 'laravel/framework' => '^11.0'],
+                        'time' => '2026-01-01T00:00:00+00:00',
+                        'keywords' => ['widget'],
+                    ],
+                ],
+            ],
+        ]),
+        'https://repo.packagist.org/*' => Http::response(['error' => 'nope'], 500),
+    ]);
+
+    $package = Package::factory()->for(Vendor::factory()->composer())->create([
+        'ecosystem' => Ecosystem::Composer,
+        'name' => 'acme/widget',
+    ]);
+
+    app()->call([new FetchPackageDetailsJob($package), 'handle']);
+
+    expect($package->fresh())
+        ->latest_version->toBe('v1.2.0')
+        ->tags->toBe(['widget']);
 });
 
 it('syncs npm package details from the registry with no vendor required', function () {
@@ -144,4 +197,39 @@ it('marks a deprecated npm package as abandoned', function () {
     app()->call([new FetchPackageDetailsJob($package), 'handle']);
 
     expect($package->fresh()->abandoned)->toBeTrue();
+});
+
+it('derives the framework constraint from every illuminate component', function () {
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://packagist.org/packages/acme/mailer.json' => Http::response([
+            'package' => ['description' => 'A mailer', 'versions' => []],
+        ]),
+        'https://repo.packagist.org/p2/acme/mailer.json' => Http::response([
+            'packages' => [
+                'acme/mailer' => [
+                    [
+                        'version' => 'v3.0',
+                        'require' => [
+                            'php' => '^8.2',
+                            'illuminate/support' => '^12.0|^13.0',
+                            'illuminate/mail' => '9 - 11',
+                        ],
+                        'time' => now()->subYears(2)->toIso8601String(),
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $package = Package::factory()->for(Vendor::factory()->composer())->create([
+        'ecosystem' => Ecosystem::Composer,
+        'name' => 'acme/mailer',
+    ]);
+
+    app()->call([new FetchPackageDetailsJob($package), 'handle']);
+
+    expect($package->fresh())
+        ->framework_constraint->toBe('^12.0|^13.0 & 9 - 11')
+        ->status->toBe(PackageStatus::Critical);
 });

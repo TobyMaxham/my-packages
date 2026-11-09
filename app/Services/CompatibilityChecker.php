@@ -15,52 +15,63 @@ class CompatibilityChecker
     private const STALE_MONTHS = 12;
 
     /**
-     * Determine the three-tier compatibility status of a package.
+     * Determine the three-tier compatibility status of a package against
+     * the required and recommended versions in config/package_targets.php.
      *
-     * - compatible: the constraint of the latest version covers the target.
-     * - unclear: it doesn't cover the target, but the package still looks
-     *   active (released recently and not abandoned) — it may simply not
-     *   have picked up the new target version yet.
-     * - critical: it doesn't cover the target and the package looks
-     *   unmaintained (stale release or abandoned).
+     * - critical: the package is abandoned, or it misses a required version
+     *   and looks unmaintained (no release in the last STALE_MONTHS).
+     * - unclear: it misses a required version but was released recently,
+     *   or it covers all required versions but misses a recommended one.
+     * - compatible: it covers every required and recommended version.
+     *
+     * @param  array<int, string>  $frameworkConstraints  every Laravel constraint of the
+     *                                                    latest release (laravel/framework,
+     *                                                    illuminate/*); all of them must
+     *                                                    allow a target version.
      */
     public function determine(
         ?string $phpConstraint,
-        ?string $frameworkConstraint,
+        array $frameworkConstraints,
         bool $abandoned,
         ?CarbonInterface $lastReleaseAt,
     ): PackageStatus {
-        if ($this->coversTargets($phpConstraint, $frameworkConstraint)) {
-            return PackageStatus::Compatible;
+        if ($abandoned) {
+            return PackageStatus::Critical;
         }
 
-        if (! $abandoned && $this->isRecentlyReleased($lastReleaseAt)) {
-            return PackageStatus::Unclear;
-        }
-
-        return PackageStatus::Critical;
-    }
-
-    private function coversTargets(?string $phpConstraint, ?string $frameworkConstraint): bool
-    {
-        /** @var array{php: string, laravel: array<int, string>} $targets */
+        /** @var array{php: array{required: array<int, string>, recommended: array<int, string>}, laravel: array{required: array<int, string>, recommended: array<int, string>}} $targets */
         $targets = config('package_targets');
 
-        if (! $this->satisfies($targets['php'], $phpConstraint)) {
-            return false;
+        $coversRequired = $this->allowsAll($targets['php']['required'], [$phpConstraint])
+            && $this->allowsAll($targets['laravel']['required'], $frameworkConstraints);
+
+        if (! $coversRequired) {
+            return $this->isRecentlyReleased($lastReleaseAt)
+                ? PackageStatus::Unclear
+                : PackageStatus::Critical;
         }
 
-        if ($frameworkConstraint === null) {
-            return true;
-        }
+        $coversRecommended = $this->allowsAll($targets['php']['recommended'], [$phpConstraint])
+            && $this->allowsAll($targets['laravel']['recommended'], $frameworkConstraints);
 
-        foreach ($targets['laravel'] as $laravelVersion) {
-            if ($this->satisfies($laravelVersion, $frameworkConstraint)) {
-                return true;
+        return $coversRecommended ? PackageStatus::Compatible : PackageStatus::Unclear;
+    }
+
+    /**
+     * @param  array<int, string>  $targetVersions
+     * @param  array<int, string|null>  $constraints
+     */
+    private function allowsAll(array $targetVersions, array $constraints): bool
+    {
+        foreach ($targetVersions as $targetVersion) {
+            foreach ($constraints as $constraint) {
+                if (! $this->satisfies($targetVersion, $constraint)) {
+                    return false;
+                }
             }
         }
 
-        return false;
+        return true;
     }
 
     private function satisfies(string $targetVersion, ?string $constraint): bool

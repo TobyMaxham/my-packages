@@ -11,6 +11,8 @@ class PackagistClient
 {
     private const BASE_URL = 'https://packagist.org';
 
+    private const REPO_URL = 'https://repo.packagist.org';
+
     /**
      * List all package names for a given Composer vendor.
      *
@@ -54,6 +56,72 @@ class PackagistClient
         }
 
         return $response->json('package');
+    }
+
+    /**
+     * Fetch all tagged versions from the Composer v2 metadata endpoint,
+     * keyed by version name.
+     *
+     * Unlike /packages/{name}.json (CDN-cached for up to 12 hours), this
+     * endpoint is only cached for minutes, so fresh releases show up on
+     * the next scan. Failures return null so callers can fall back.
+     *
+     * @return array<string, array<string, mixed>>|null
+     */
+    public function releasedVersions(string $vendor, string $package): ?array
+    {
+        $response = Http::baseUrl(self::REPO_URL)->get("/p2/{$vendor}/{$package}.json");
+
+        if ($response->failed()) {
+            if (! $response->notFound()) {
+                Log::warning("Packagist metadata lookup for \"{$vendor}/{$package}\" failed", ['status' => $response->status()]);
+            }
+
+            return null;
+        }
+
+        $entries = $response->json('packages')["{$vendor}/{$package}"] ?? null;
+
+        if (! is_array($entries) || $entries === []) {
+            return null;
+        }
+
+        $isMinified = $response->json('minified') === 'composer/2.0';
+        $versions = [];
+        $previous = [];
+
+        foreach ($entries as $entry) {
+            $expanded = $isMinified ? $this->expandMinifiedEntry($previous, $entry) : $entry;
+
+            if (isset($expanded['version'])) {
+                $versions[$expanded['version']] = $expanded;
+            }
+
+            $previous = $expanded;
+        }
+
+        return $versions;
+    }
+
+    /**
+     * Composer v2 metadata only lists the fields that changed compared to
+     * the previous version; "__unset" marks a field that was removed.
+     *
+     * @param  array<string, mixed>  $previous
+     * @param  array<string, mixed>  $entry
+     * @return array<string, mixed>
+     */
+    private function expandMinifiedEntry(array $previous, array $entry): array
+    {
+        foreach ($entry as $key => $value) {
+            if ($value === '__unset') {
+                unset($previous[$key]);
+            } else {
+                $previous[$key] = $value;
+            }
+        }
+
+        return $previous;
     }
 
     /**

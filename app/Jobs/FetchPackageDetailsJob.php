@@ -42,30 +42,49 @@ class FetchPackageDetailsJob implements ShouldQueue
             return;
         }
 
-        $latest = $packagist->latestVersion($details['versions'] ?? []);
+        $versions = $packagist->releasedVersions($vendorSlug, $packageSlug) ?? $details['versions'] ?? [];
+        $latest = $packagist->latestVersion($versions);
         $require = $latest['require'] ?? [];
 
         $phpConstraint = $require['php'] ?? null;
-        $frameworkConstraint = $require['laravel/framework'] ?? $require['illuminate/support'] ?? null;
+        $frameworkConstraints = $this->frameworkConstraints($require);
         $lastReleaseAt = isset($latest['time']) ? Carbon::parse($latest['time']) : null;
         $abandoned = ! in_array($details['abandoned'] ?? false, [false, null], true);
 
-        $status = $checker->determine($phpConstraint, $frameworkConstraint, $abandoned, $lastReleaseAt);
+        $status = $checker->determine($phpConstraint, $frameworkConstraints, $abandoned, $lastReleaseAt);
 
         $this->package->update([
-            'description' => $details['description'] ?? $this->package->description,
+            'description' => $latest['description'] ?? $details['description'] ?? $this->package->description,
             'tags' => array_values($latest['keywords'] ?? []),
             'repository_url' => $details['repository'] ?? $this->package->repository_url,
             'abandoned' => $abandoned,
             'latest_version' => $latest['version'] ?? $this->package->latest_version,
             'php_constraint' => $phpConstraint,
-            'framework_constraint' => $frameworkConstraint,
+            'framework_constraint' => $frameworkConstraints === [] ? null : implode(' & ', $frameworkConstraints),
             'last_release_at' => $lastReleaseAt,
             'status' => $status,
             'downloads_total' => $details['downloads']['total'] ?? 0,
             'favers' => $details['favers'] ?? 0,
             'last_checked_at' => now(),
         ]);
+    }
+
+    /**
+     * Collect the distinct Laravel constraints a release depends on, from
+     * laravel/framework and every illuminate/* component.
+     *
+     * @param  array<string, string>  $require
+     * @return array<int, string>
+     */
+    private function frameworkConstraints(array $require): array
+    {
+        $constraints = array_filter(
+            $require,
+            fn (string $package): bool => $package === 'laravel/framework' || str_starts_with($package, 'illuminate/'),
+            ARRAY_FILTER_USE_KEY,
+        );
+
+        return array_values(array_unique($constraints));
     }
 
     /**
@@ -94,7 +113,7 @@ class FetchPackageDetailsJob implements ShouldQueue
             $latest['repository']['url'] ?? $details['repository']['url'] ?? null
         );
 
-        $status = $checker->determine(null, null, $abandoned, $lastReleaseAt);
+        $status = $checker->determine(null, [], $abandoned, $lastReleaseAt);
 
         $this->package->update([
             'description' => $details['description'] ?? $this->package->description,
