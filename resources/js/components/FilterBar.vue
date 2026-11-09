@@ -64,6 +64,7 @@ watch([ecosystem, vendor, status, staleMonths], emitFilters);
       <option value="compatible">Kompatibel</option>
       <option value="unclear">Unklar</option>
       <option value="critical">Kritisch</option>
+      <option value="abandoned">Eingestellt</option>
     </select>
 
     <select v-if="auth.isLoggedIn" v-model="staleMonths" class="form-select pr-select">

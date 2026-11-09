@@ -8,4 +8,5 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/components/StatusBadge.vue | .ai/rules/components.md |
 | app/Http/Resources/PackageResource.php | .ai/rules/resources.md |
 | routes/web.php | .ai/rules/routes.md |
+| app/Services/CompatibilityChecker.php | .ai/rules/services.md |
 | resources/js/views/PackageExplorer.vue | .ai/rules/views.md |

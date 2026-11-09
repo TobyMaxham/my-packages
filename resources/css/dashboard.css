@@ -15,6 +15,8 @@
   --pr-unclear-bg: #fbf1e0;
   --pr-critical: #c4432b;
   --pr-critical-bg: #fbe9e5;
+  --pr-abandoned: #5b6270;
+  --pr-abandoned-bg: #eceef1;
   --pr-radius-sm: 6px;
   --pr-radius-md: 10px;
   --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
@@ -298,6 +300,10 @@
 .pr-status-critical {
   color: var(--pr-critical);
   background: var(--pr-critical-bg);
+}
+.pr-status-abandoned {
+  color: var(--pr-abandoned);
+  background: var(--pr-abandoned-bg);
 }
 
 .pr-github-link {

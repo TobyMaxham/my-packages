@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { useAuth } from '../composables/useAuth';
 
 const props = defineProps({
-  status: { type: String, required: true }, // 'compatible' | 'unclear' | 'critical'
+  status: { type: String, required: true }, // 'compatible' | 'unclear' | 'critical' | 'abandoned'
 });
 
 const { auth } = useAuth();
@@ -12,6 +12,7 @@ const labels = {
   compatible: 'Kompatibel',
   unclear: 'Unklar',
   critical: 'Kritisch',
+  abandoned: 'Eingestellt',
 };
 
 // Für Gäste bewusst neutraler formuliert - die volle Einordnung "Kritisch"
@@ -24,12 +25,14 @@ const icons = {
   compatible: 'bi-check-circle-fill',
   unclear: 'bi-question-circle-fill',
   critical: 'bi-exclamation-triangle-fill',
+  abandoned: 'bi-archive-fill',
 };
 
 const tooltips = {
   compatible: 'Unterstützt die aktuellen Ziel-Versionen ohne bekannte Probleme.',
   unclear: 'Kompatibilität konnte nicht eindeutig geprüft werden.',
   critical: 'Kein Support für aktuelle PHP-/Laravel-Zielversionen — Handlungsbedarf.',
+  abandoned: 'Als abandoned markiert und wird nicht mehr gepflegt — kein Handlungsbedarf.',
 };
 
 const label = computed(() => {

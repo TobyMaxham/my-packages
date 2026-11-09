@@ -28,8 +28,10 @@ class CompatibilityChecker
      * Determine the three-tier compatibility status of a package against
      * the required and recommended versions in config/package_targets.php.
      *
-     * - critical: the package is abandoned, or it misses a required version
-     *   and looks unmaintained (no release in the last STALE_MONTHS).
+     * - abandoned: the package is marked abandoned/deprecated. It is no
+     *   longer maintained, so it is never flagged "critical".
+     * - critical: it misses a required version and looks unmaintained
+     *   (no release in the last STALE_MONTHS).
      * - unclear: it misses a required version but was released recently;
      *   or it covers all required versions but has no tagged release, has
      *   no bounded Laravel constraint and a release older than
@@ -52,7 +54,7 @@ class CompatibilityChecker
         Ecosystem $ecosystem = Ecosystem::Composer,
     ): PackageStatus {
         if ($abandoned) {
-            return PackageStatus::Critical;
+            return PackageStatus::Abandoned;
         }
 
         /** @var array{php: array{required: array<int, string>, recommended: array<int, string>}, laravel: array{required: array<int, string>, recommended: array<int, string>}} $targets */

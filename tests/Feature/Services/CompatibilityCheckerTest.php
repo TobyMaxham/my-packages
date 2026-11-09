@@ -57,10 +57,13 @@ it('marks a package critical when it lacks required support and is stale', funct
     expect($status)->toBe(PackageStatus::Critical);
 });
 
-it('marks an abandoned package critical even when it covers every target version', function () {
-    $status = (new CompatibilityChecker)->determine('^8.2', ['^12.0|^13.0'], true, now());
+it('marks an abandoned package abandoned, never critical, even when it misses every target and is stale', function () {
+    freezeTime();
 
-    expect($status)->toBe(PackageStatus::Critical);
+    $checker = new CompatibilityChecker;
+
+    expect($checker->determine('^8.2', ['^12.0|^13.0'], true, now()))->toBe(PackageStatus::Abandoned)
+        ->and($checker->determine('^5.6', ['^5.0'], true, now()->subYears(10)))->toBe(PackageStatus::Abandoned);
 });
 
 it('marks a package critical when it lacks required support and has no known release date', function () {
