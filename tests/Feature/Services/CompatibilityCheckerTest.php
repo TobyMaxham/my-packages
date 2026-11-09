@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\Ecosystem;
 use App\Enums\PackageStatus;
 use App\Services\CompatibilityChecker;
 
@@ -66,4 +67,33 @@ it('marks a package critical when it lacks required support and has no known rel
     $status = (new CompatibilityChecker)->determine('^7.4', ['^10.0'], false, null);
 
     expect($status)->toBe(PackageStatus::Critical);
+});
+
+it('marks a package without a tagged release unclear when its default branch covers the targets', function () {
+    $status = (new CompatibilityChecker)->determine('^8.2', ['^12.0|^13.0'], false, null, hasRelease: false);
+
+    expect($status)->toBe(PackageStatus::Unclear);
+});
+
+it('marks a package without a tagged release critical when its default branch misses a required version', function () {
+    $status = (new CompatibilityChecker)->determine('^8.2', ['^10.0|^11.0'], false, null, hasRelease: false);
+
+    expect($status)->toBe(PackageStatus::Critical);
+});
+
+it('marks an old composer package without laravel constraints unclear', function () {
+    freezeTime();
+
+    $checker = new CompatibilityChecker;
+
+    expect($checker->determine('>=5.5.9', [], false, now()->subYears(3)->subDay()))->toBe(PackageStatus::Unclear)
+        ->and($checker->determine('>=5.5.9', [], false, now()->subYears(3)->addDay()))->toBe(PackageStatus::Compatible);
+});
+
+it('does not apply the missing-constraint age rule to npm packages', function () {
+    freezeTime();
+
+    $status = (new CompatibilityChecker)->determine(null, [], false, now()->subYears(5), ecosystem: Ecosystem::Npm);
+
+    expect($status)->toBe(PackageStatus::Compatible);
 });

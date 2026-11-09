@@ -48,7 +48,14 @@ function formatDate(value) {
         <td class="pr-mono">{{ pkg.php_range ?? '—' }}</td>
         <td class="pr-mono">{{ pkg.laravel_range ?? '—' }}</td>
         <td>{{ formatDate(pkg.last_release_at) }}</td>
-        <td v-if="auth.isLoggedIn"><StatusBadge :status="pkg.status" /></td>
+        <td v-if="auth.isLoggedIn">
+          <StatusBadge :status="pkg.status" />
+          <i
+            v-if="pkg.outdated_dependencies?.length"
+            class="bi bi-exclamation-diamond-fill text-warning ms-1"
+            :title="`Verlangt veraltete Version von: ${pkg.outdated_dependencies.map((dep) => dep.name).join(', ')}`"
+          ></i>
+        </td>
         <td class="text-end">
           <a
             v-if="pkg.github_url"

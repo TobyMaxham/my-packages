@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\Ecosystem;
 use App\Enums\PackageStatus;
 use Carbon\CarbonInterface;
 use Composer\Semver\Semver;
@@ -15,25 +16,38 @@ class CompatibilityChecker
     private const STALE_MONTHS = 12;
 
     /**
+     * A composer package without any Laravel constraint whose last release
+     * is older than this was most likely never checked against current
+     * Laravel versions, so "no constraint" is no longer read as "compatible".
+     */
+    private const UNCONSTRAINED_MAX_AGE_YEARS = 3;
+
+    /**
      * Determine the three-tier compatibility status of a package against
      * the required and recommended versions in config/package_targets.php.
      *
      * - critical: the package is abandoned, or it misses a required version
      *   and looks unmaintained (no release in the last STALE_MONTHS).
-     * - unclear: it misses a required version but was released recently,
-     *   or it covers all required versions but misses a recommended one.
+     * - unclear: it misses a required version but was released recently;
+     *   or it covers all required versions but has no tagged release, has
+     *   no Laravel constraint and a release older than
+     *   UNCONSTRAINED_MAX_AGE_YEARS (composer only), or misses a
+     *   recommended version.
      * - compatible: it covers every required and recommended version.
      *
      * @param  array<int, string>  $frameworkConstraints  every Laravel constraint of the
      *                                                    latest release (laravel/framework,
      *                                                    illuminate/*); all of them must
      *                                                    allow a target version.
+     * @param  bool  $hasRelease  false when only the default branch could be checked
      */
     public function determine(
         ?string $phpConstraint,
         array $frameworkConstraints,
         bool $abandoned,
         ?CarbonInterface $lastReleaseAt,
+        bool $hasRelease = true,
+        Ecosystem $ecosystem = Ecosystem::Composer,
     ): PackageStatus {
         if ($abandoned) {
             return PackageStatus::Critical;
@@ -49,6 +63,17 @@ class CompatibilityChecker
             return $this->isRecentlyReleased($lastReleaseAt)
                 ? PackageStatus::Unclear
                 : PackageStatus::Critical;
+        }
+
+        if (! $hasRelease) {
+            return PackageStatus::Unclear;
+        }
+
+        if ($ecosystem === Ecosystem::Composer
+            && $frameworkConstraints === []
+            && $lastReleaseAt !== null
+            && $lastReleaseAt->lessThan(now()->subYears(self::UNCONSTRAINED_MAX_AGE_YEARS))) {
+            return PackageStatus::Unclear;
         }
 
         $coversRecommended = $this->allowsAll($targets['php']['recommended'], [$phpConstraint])

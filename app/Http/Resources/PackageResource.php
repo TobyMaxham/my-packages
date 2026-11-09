@@ -47,6 +47,7 @@ class PackageResource extends JsonResource
             'downloads_total' => $this->when($isAuthenticated, $this->downloads_total),
             'favers' => $this->when($isAuthenticated, $this->favers),
             'last_checked_at' => $this->when($isAuthenticated, $this->last_checked_at),
+            'outdated_dependencies' => $this->when($isAuthenticated, $this->outdated_dependencies ?? []),
         ];
     }
 }

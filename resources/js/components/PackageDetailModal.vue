@@ -100,6 +100,19 @@ function formatDate(value) {
                 <dd>{{ formatDate(pkg.last_checked_at) }}</dd>
               </div>
             </dl>
+
+            <div v-if="pkg.outdated_dependencies?.length" class="alert alert-warning mt-3 mb-0">
+              <div class="fw-semibold mb-1">
+                <i class="bi bi-exclamation-triangle-fill"></i> Veraltete eigene Abhängigkeiten
+              </div>
+              <ul class="mb-0">
+                <li v-for="dep in pkg.outdated_dependencies" :key="dep.name">
+                  <span class="pr-mono">{{ dep.name }}</span>:
+                  verlangt <span class="pr-mono">{{ dep.constraint }}</span>,
+                  aktuell ist <span class="pr-mono">{{ dep.latest_version }}</span>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>

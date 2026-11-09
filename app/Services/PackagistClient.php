@@ -70,7 +70,35 @@ class PackagistClient
      */
     public function releasedVersions(string $vendor, string $package): ?array
     {
-        $response = Http::baseUrl(self::REPO_URL)->get("/p2/{$vendor}/{$package}.json");
+        return $this->metadataVersions($vendor, $package, "/p2/{$vendor}/{$package}.json");
+    }
+
+    /**
+     * Fetch the default branch (e.g. dev-main) from the Composer v2 dev
+     * metadata. Used for packages that never tagged a release, so their
+     * composer.json constraints can still be checked.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function defaultBranchVersion(string $vendor, string $package): ?array
+    {
+        $versions = $this->metadataVersions($vendor, $package, "/p2/{$vendor}/{$package}~dev.json") ?? [];
+
+        foreach ($versions as $version) {
+            if (($version['default-branch'] ?? false) === true) {
+                return $version;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>|null
+     */
+    private function metadataVersions(string $vendor, string $package, string $path): ?array
+    {
+        $response = Http::baseUrl(self::REPO_URL)->get($path);
 
         if ($response->failed()) {
             if (! $response->notFound()) {

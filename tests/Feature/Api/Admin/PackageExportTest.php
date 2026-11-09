@@ -70,6 +70,7 @@ it('computes days/years since last release server-side, as UTC ISO-8601 strings'
             'latest_version' => 'v1.0.0',
             'php_constraint' => '^5.6',
             'framework_constraint' => null,
+            'outdated_dependencies' => [],
             'last_release_at' => '2013-08-01T00:00:00Z',
             'days_since_last_release' => 4783,
             'years_since_last_release' => 13.1,

@@ -24,7 +24,7 @@ it('returns only neutral, non-evaluative fields for guests', function () {
             'latest_version', 'last_release_at', 'php_range', 'laravel_range',
             'is_featured', 'featured_note',
         ])
-        ->not->toHaveKeys(['status', 'abandoned', 'downloads_total', 'favers', 'last_checked_at']);
+        ->not->toHaveKeys(['status', 'abandoned', 'downloads_total', 'favers', 'last_checked_at', 'outdated_dependencies']);
 });
 
 it('filters to only featured packages, publicly', function () {
@@ -58,7 +58,7 @@ it('includes the computed status and extended fields only for authenticated requ
     $response->assertOk();
 
     expect($response->json('data.0'))
-        ->toHaveKeys(['status', 'downloads_total', 'favers', 'abandoned', 'last_checked_at'])
+        ->toHaveKeys(['status', 'downloads_total', 'favers', 'abandoned', 'last_checked_at', 'outdated_dependencies'])
         ->and($response->json('data.0.status'))->toBe('critical')
         ->and($response->json('data.0.downloads_total'))->toBe(12_345)
         ->and($response->json('data.0.favers'))->toBe(42);

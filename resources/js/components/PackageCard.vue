@@ -29,7 +29,14 @@ function formatDate(value) {
         <div class="pr-package-vendor">{{ pkg.vendor }}</div>
         <h3 class="pr-package-name">{{ pkg.name }}</h3>
       </div>
-      <StatusBadge v-if="auth.isLoggedIn" :status="pkg.status" />
+      <div v-if="auth.isLoggedIn" class="d-flex align-items-center">
+        <StatusBadge :status="pkg.status" />
+        <i
+          v-if="pkg.outdated_dependencies?.length"
+          class="bi bi-exclamation-diamond-fill text-warning ms-1"
+          :title="`Verlangt veraltete Version von: ${pkg.outdated_dependencies.map((dep) => dep.name).join(', ')}`"
+        ></i>
+      </div>
     </div>
 
     <div class="pr-tag-row" v-if="pkg.tags?.length">

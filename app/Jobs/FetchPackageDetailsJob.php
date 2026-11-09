@@ -8,6 +8,7 @@ use App\Services\CompatibilityChecker;
 use App\Services\NpmRegistryClient;
 use App\Services\PackagistClient;
 use Carbon\Carbon;
+use Composer\Semver\Semver;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -43,24 +44,37 @@ class FetchPackageDetailsJob implements ShouldQueue
         }
 
         $versions = $packagist->releasedVersions($vendorSlug, $packageSlug) ?? $details['versions'] ?? [];
-        $latest = $packagist->latestVersion($versions);
+        $release = $packagist->latestVersion($versions);
+        $hasRelease = $release !== null;
+
+        // Without any tagged release, fall back to the default branch so its
+        // composer.json constraints are still checked. Its commit time is not
+        // a release date, so last_release_at/latest_version stay empty.
+        $latest = $release ?? $packagist->defaultBranchVersion($vendorSlug, $packageSlug) ?? [];
         $require = $latest['require'] ?? [];
 
         $phpConstraint = $require['php'] ?? null;
         $frameworkConstraints = $this->frameworkConstraints($require);
-        $lastReleaseAt = isset($latest['time']) ? Carbon::parse($latest['time']) : null;
+        $lastReleaseAt = $hasRelease && isset($release['time']) ? Carbon::parse($release['time']) : null;
         $abandoned = ! in_array($details['abandoned'] ?? false, [false, null], true);
 
-        $status = $checker->determine($phpConstraint, $frameworkConstraints, $abandoned, $lastReleaseAt);
+        $status = $checker->determine(
+            $phpConstraint,
+            $frameworkConstraints,
+            $abandoned,
+            $lastReleaseAt,
+            hasRelease: $hasRelease,
+        );
 
         $this->package->update([
             'description' => $latest['description'] ?? $details['description'] ?? $this->package->description,
             'tags' => array_values($latest['keywords'] ?? []),
             'repository_url' => $details['repository'] ?? $this->package->repository_url,
             'abandoned' => $abandoned,
-            'latest_version' => $latest['version'] ?? $this->package->latest_version,
+            'latest_version' => $hasRelease ? $release['version'] ?? null : null,
             'php_constraint' => $phpConstraint,
             'framework_constraint' => $frameworkConstraints === [] ? null : implode(' & ', $frameworkConstraints),
+            'outdated_dependencies' => $this->outdatedDependencies($require),
             'last_release_at' => $lastReleaseAt,
             'status' => $status,
             'downloads_total' => $details['downloads']['total'] ?? 0,
@@ -85,6 +99,50 @@ class FetchPackageDetailsJob implements ShouldQueue
         );
 
         return array_values(array_unique($constraints));
+    }
+
+    /**
+     * Find dependencies on other tracked composer packages whose constraint
+     * does not allow that package's latest known version — a hint that this
+     * package pins an outdated release of one of our own packages.
+     *
+     * The comparison uses the dependency's latest_version as stored, so a
+     * release found in the same scan may only show up on the next one.
+     *
+     * @param  array<string, string>  $require
+     * @return array<int, array{name: string, constraint: string, latest_version: string}>
+     */
+    private function outdatedDependencies(array $require): array
+    {
+        $trackedDependencies = Package::query()
+            ->where('ecosystem', Ecosystem::Composer)
+            ->whereIn('name', array_keys($require))
+            ->whereKeyNot($this->package->getKey())
+            ->whereNotNull('latest_version')
+            ->orderBy('name')
+            ->get(['name', 'latest_version']);
+
+        $outdated = [];
+
+        foreach ($trackedDependencies as $dependency) {
+            $constraint = $require[$dependency->name];
+
+            try {
+                if (Semver::satisfies($dependency->latest_version, $constraint)) {
+                    continue;
+                }
+            } catch (\UnexpectedValueException) {
+                continue;
+            }
+
+            $outdated[] = [
+                'name' => $dependency->name,
+                'constraint' => $constraint,
+                'latest_version' => $dependency->latest_version,
+            ];
+        }
+
+        return $outdated;
     }
 
     /**
@@ -113,7 +171,7 @@ class FetchPackageDetailsJob implements ShouldQueue
             $latest['repository']['url'] ?? $details['repository']['url'] ?? null
         );
 
-        $status = $checker->determine(null, [], $abandoned, $lastReleaseAt);
+        $status = $checker->determine(null, [], $abandoned, $lastReleaseAt, ecosystem: Ecosystem::Npm);
 
         $this->package->update([
             'description' => $details['description'] ?? $this->package->description,
@@ -123,6 +181,7 @@ class FetchPackageDetailsJob implements ShouldQueue
             'latest_version' => $latestTag ?? $this->package->latest_version,
             'php_constraint' => null,
             'framework_constraint' => null,
+            'outdated_dependencies' => null,
             'last_release_at' => $lastReleaseAt,
             'status' => $status,
             'downloads_total' => 0,

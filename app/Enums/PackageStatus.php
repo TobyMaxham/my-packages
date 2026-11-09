@@ -18,8 +18,8 @@ enum PackageStatus: string
     {
         return [
             self::Compatible->value => 'Neueste Version erlaubt alle required- und recommended-Zielversionen und ist nicht abandoned.',
-            self::Unclear->value => 'Nicht abandoned und entweder: required-Zielversion fehlt, aber Release ist jünger als 12 Monate; oder: alle required erlaubt, aber eine recommended-Zielversion fehlt.',
-            self::Critical->value => 'Abandoned ODER (required-Zielversion fehlt UND Release älter als 12 Monate).',
+            self::Unclear->value => 'Nicht abandoned und entweder: required-Zielversion fehlt, aber Release ist jünger als 12 Monate; oder: alle required erlaubt, aber kein getaggtes Release (nur Default-Branch geprüft), kein Laravel-Constraint bei Release älter als 3 Jahren (nur Composer) oder eine recommended-Zielversion fehlt.',
+            self::Critical->value => 'Abandoned ODER (required-Zielversion fehlt UND (Release älter als 12 Monate ODER kein Release)).',
         ];
     }
 }

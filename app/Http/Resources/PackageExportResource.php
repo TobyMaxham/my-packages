@@ -34,6 +34,7 @@ class PackageExportResource extends JsonResource
             'latest_version' => $this->latest_version,
             'php_constraint' => $this->php_constraint,
             'framework_constraint' => $this->framework_constraint,
+            'outdated_dependencies' => $this->outdated_dependencies ?? [],
             'last_release_at' => self::formatUtc($lastReleaseAt),
             // Computed server-side on purpose — the consumer (an LLM) must
             // never have to do this arithmetic itself.

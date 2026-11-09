@@ -233,3 +233,77 @@ it('derives the framework constraint from every illuminate component', function 
         ->framework_constraint->toBe('^12.0|^13.0 & 9 - 11')
         ->status->toBe(PackageStatus::Critical);
 });
+
+it('flags dependencies on tracked packages whose constraint excludes their latest version', function () {
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://packagist.org/packages/acme/identity.json' => Http::response([
+            'package' => ['description' => 'Identity', 'versions' => []],
+        ]),
+        'https://repo.packagist.org/p2/acme/identity.json' => Http::response([
+            'packages' => [
+                'acme/identity' => [
+                    [
+                        'version' => 'v1.0.0',
+                        'require' => [
+                            'php' => '^8.3',
+                            'acme/auth' => '^2.0',
+                            'acme/service' => '^2.0',
+                            'vendor/untracked' => '^1.0',
+                        ],
+                        'time' => now()->toIso8601String(),
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $vendor = Vendor::factory()->composer()->create();
+    Package::factory()->for($vendor)->create(['name' => 'acme/auth', 'latest_version' => 'v3.0.1']);
+    Package::factory()->for($vendor)->create(['name' => 'acme/service', 'latest_version' => 'v2.1.0']);
+    $package = Package::factory()->for($vendor)->create(['name' => 'acme/identity']);
+
+    app()->call([new FetchPackageDetailsJob($package), 'handle']);
+
+    expect($package->fresh()->outdated_dependencies)->toBe([
+        ['name' => 'acme/auth', 'constraint' => '^2.0', 'latest_version' => 'v3.0.1'],
+    ]);
+});
+
+it('checks the default branch constraints when a package has no tagged release', function () {
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://packagist.org/packages/acme/filesystem.json' => Http::response([
+            'package' => ['description' => 'A filesystem', 'versions' => []],
+        ]),
+        'https://repo.packagist.org/p2/acme/filesystem.json' => Http::response([
+            'packages' => ['acme/filesystem' => []],
+        ]),
+        'https://repo.packagist.org/p2/acme/filesystem~dev.json' => Http::response([
+            'minified' => 'composer/2.0',
+            'packages' => [
+                'acme/filesystem' => [
+                    [
+                        'version' => 'dev-main',
+                        'default-branch' => true,
+                        'require' => ['php' => '^8.2', 'laravel/framework' => '^10.0|^11.0'],
+                        'time' => now()->subMonth()->toIso8601String(),
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $package = Package::factory()->for(Vendor::factory()->composer())->create([
+        'name' => 'acme/filesystem',
+        'latest_version' => null,
+    ]);
+
+    app()->call([new FetchPackageDetailsJob($package), 'handle']);
+
+    expect($package->fresh())
+        ->latest_version->toBeNull()
+        ->last_release_at->toBeNull()
+        ->framework_constraint->toBe('^10.0|^11.0')
+        ->status->toBe(PackageStatus::Critical);
+});
