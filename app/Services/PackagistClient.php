@@ -84,7 +84,9 @@ class PackagistClient
             return null;
         }
 
-        uksort($pool, fn (string $a, string $b): int => Comparator::lessThan($a, $b) ? 1 : -1);
+        $parser = new VersionParser;
+
+        uksort($pool, fn (string $a, string $b): int => Comparator::lessThan($parser->normalize($a), $parser->normalize($b)) ? 1 : -1);
 
         return reset($pool);
     }
