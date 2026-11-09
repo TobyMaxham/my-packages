@@ -55,6 +55,11 @@ function formatDate(value) {
             class="bi bi-exclamation-diamond-fill text-warning ms-1"
             :title="`Verlangt veraltete Version von: ${pkg.outdated_dependencies.map((dep) => dep.name).join(', ')}`"
           ></i>
+          <i
+            v-if="pkg.unreleased_changes?.length"
+            class="bi bi-tag-fill text-info ms-1"
+            title="Release fällig: Default-Branch hat andere PHP-/Laravel-Constraints als das letzte Release"
+          ></i>
         </td>
         <td class="text-end">
           <a

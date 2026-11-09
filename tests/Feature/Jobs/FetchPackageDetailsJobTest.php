@@ -17,6 +17,7 @@ beforeEach(function () {
 it('syncs composer package details from packagist', function () {
     Http::preventStrayRequests();
     Http::fake([
+        'https://repo.packagist.org/p2/acme/widget~dev.json' => Http::response([], 404),
         'https://packagist.org/packages/acme/widget.json' => Http::response([
             'package' => [
                 'description' => 'A widget',
@@ -202,6 +203,7 @@ it('marks a deprecated npm package as abandoned', function () {
 it('derives the framework constraint from every illuminate component', function () {
     Http::preventStrayRequests();
     Http::fake([
+        'https://repo.packagist.org/p2/acme/mailer~dev.json' => Http::response([], 404),
         'https://packagist.org/packages/acme/mailer.json' => Http::response([
             'package' => ['description' => 'A mailer', 'versions' => []],
         ]),
@@ -237,6 +239,7 @@ it('derives the framework constraint from every illuminate component', function 
 it('flags dependencies on tracked packages whose constraint excludes their latest version', function () {
     Http::preventStrayRequests();
     Http::fake([
+        'https://repo.packagist.org/p2/acme/identity~dev.json' => Http::response([], 404),
         'https://packagist.org/packages/acme/identity.json' => Http::response([
             'package' => ['description' => 'Identity', 'versions' => []],
         ]),
@@ -306,4 +309,80 @@ it('checks the default branch constraints when a package has no tagged release',
         ->last_release_at->toBeNull()
         ->framework_constraint->toBe('^10.0|^11.0')
         ->status->toBe(PackageStatus::Critical);
+});
+
+it('flags constraint changes on the default branch that no release ships yet', function () {
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://packagist.org/packages/acme/props.json' => Http::response([
+            'package' => ['description' => 'Props', 'versions' => []],
+        ]),
+        'https://repo.packagist.org/p2/acme/props.json' => Http::response([
+            'packages' => [
+                'acme/props' => [
+                    [
+                        'version' => 'v1.2.1',
+                        'require' => ['php' => '^8.2', 'illuminate/support' => '^11.0|^12.0'],
+                        'time' => now()->subMonth()->toIso8601String(),
+                    ],
+                ],
+            ],
+        ]),
+        'https://repo.packagist.org/p2/acme/props~dev.json' => Http::response([
+            'packages' => [
+                'acme/props' => [
+                    [
+                        'version' => 'dev-main',
+                        'default-branch' => true,
+                        'require' => ['php' => '^8.2', 'illuminate/support' => '^12.0 || ^13.0'],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $package = Package::factory()->for(Vendor::factory()->composer())->create(['name' => 'acme/props']);
+
+    app()->call([new FetchPackageDetailsJob($package), 'handle']);
+
+    expect($package->fresh()->unreleased_changes)->toBe([
+        ['type' => 'laravel', 'release' => '^11.0|^12.0', 'default_branch' => '^12.0 || ^13.0'],
+    ]);
+});
+
+it('does not flag the default branch when its constraints only differ in notation', function () {
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://packagist.org/packages/acme/props.json' => Http::response([
+            'package' => ['description' => 'Props', 'versions' => []],
+        ]),
+        'https://repo.packagist.org/p2/acme/props.json' => Http::response([
+            'packages' => [
+                'acme/props' => [
+                    [
+                        'version' => 'v2.0.0',
+                        'require' => ['php' => '^8.3', 'illuminate/support' => '^12.0|^13.0'],
+                        'time' => now()->subMonth()->toIso8601String(),
+                    ],
+                ],
+            ],
+        ]),
+        'https://repo.packagist.org/p2/acme/props~dev.json' => Http::response([
+            'packages' => [
+                'acme/props' => [
+                    [
+                        'version' => 'dev-main',
+                        'default-branch' => true,
+                        'require' => ['php' => '^8.3', 'illuminate/support' => '^12 || ^13'],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $package = Package::factory()->for(Vendor::factory()->composer())->create(['name' => 'acme/props']);
+
+    app()->call([new FetchPackageDetailsJob($package), 'handle']);
+
+    expect($package->fresh()->unreleased_changes)->toBe([]);
 });

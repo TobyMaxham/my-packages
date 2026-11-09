@@ -48,6 +48,7 @@ class PackageResource extends JsonResource
             'favers' => $this->when($isAuthenticated, $this->favers),
             'last_checked_at' => $this->when($isAuthenticated, $this->last_checked_at),
             'outdated_dependencies' => $this->when($isAuthenticated, $this->outdated_dependencies ?? []),
+            'unreleased_changes' => $this->when($isAuthenticated, $this->unreleased_changes ?? []),
         ];
     }
 }

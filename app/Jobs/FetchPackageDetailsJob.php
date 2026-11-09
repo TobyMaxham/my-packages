@@ -8,7 +8,10 @@ use App\Services\CompatibilityChecker;
 use App\Services\NpmRegistryClient;
 use App\Services\PackagistClient;
 use Carbon\Carbon;
+use Composer\Semver\Constraint\MultiConstraint;
+use Composer\Semver\Intervals;
 use Composer\Semver\Semver;
+use Composer\Semver\VersionParser;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -50,7 +53,8 @@ class FetchPackageDetailsJob implements ShouldQueue
         // Without any tagged release, fall back to the default branch so its
         // composer.json constraints are still checked. Its commit time is not
         // a release date, so last_release_at/latest_version stay empty.
-        $latest = $release ?? $packagist->defaultBranchVersion($vendorSlug, $packageSlug) ?? [];
+        $defaultBranch = $packagist->defaultBranchVersion($vendorSlug, $packageSlug);
+        $latest = $release ?? $defaultBranch ?? [];
         $require = $latest['require'] ?? [];
 
         $phpConstraint = $require['php'] ?? null;
@@ -75,6 +79,9 @@ class FetchPackageDetailsJob implements ShouldQueue
             'php_constraint' => $phpConstraint,
             'framework_constraint' => $frameworkConstraints === [] ? null : implode(' & ', $frameworkConstraints),
             'outdated_dependencies' => $this->outdatedDependencies($require),
+            'unreleased_changes' => $hasRelease && $defaultBranch !== null
+                ? $this->unreleasedConstraintChanges($require, $defaultBranch['require'] ?? [])
+                : [],
             'last_release_at' => $lastReleaseAt,
             'status' => $status,
             'downloads_total' => $details['downloads']['total'] ?? 0,
@@ -146,6 +153,67 @@ class FetchPackageDetailsJob implements ShouldQueue
     }
 
     /**
+     * Compare the PHP and Laravel constraints of the latest release with
+     * the default branch — a difference means the branch already supports
+     * (or drops) versions that no tagged release ships yet.
+     *
+     * @param  array<string, string>  $releaseRequire
+     * @param  array<string, string>  $branchRequire
+     * @return array<int, array{type: string, release: string|null, default_branch: string|null}>
+     */
+    private function unreleasedConstraintChanges(array $releaseRequire, array $branchRequire): array
+    {
+        $changes = [];
+
+        $releasePhp = $releaseRequire['php'] ?? null;
+        $branchPhp = $branchRequire['php'] ?? null;
+
+        if (! $this->sameConstraints(array_filter([$releasePhp]), array_filter([$branchPhp]))) {
+            $changes[] = ['type' => 'php', 'release' => $releasePhp, 'default_branch' => $branchPhp];
+        }
+
+        $releaseFramework = $this->frameworkConstraints($releaseRequire);
+        $branchFramework = $this->frameworkConstraints($branchRequire);
+
+        if (! $this->sameConstraints($releaseFramework, $branchFramework)) {
+            $changes[] = [
+                'type' => 'laravel',
+                'release' => $releaseFramework === [] ? null : implode(' & ', $releaseFramework),
+                'default_branch' => $branchFramework === [] ? null : implode(' & ', $branchFramework),
+            ];
+        }
+
+        return $changes;
+    }
+
+    /**
+     * Whether two sets of constraints (each set combined with AND) allow
+     * exactly the same versions, so "^12|^13" equals "^12.0 || ^13.0".
+     *
+     * @param  array<int, string>  $first
+     * @param  array<int, string>  $second
+     */
+    private function sameConstraints(array $first, array $second): bool
+    {
+        try {
+            return $this->normalizeConstraints($first) === $this->normalizeConstraints($second);
+        } catch (\UnexpectedValueException) {
+            return $first === $second;
+        }
+    }
+
+    /**
+     * @param  array<int, string>  $constraints
+     */
+    private function normalizeConstraints(array $constraints): string
+    {
+        $parser = new VersionParser;
+        $parsed = array_map(fn (string $constraint) => $parser->parseConstraints($constraint), $constraints);
+
+        return (string) Intervals::compactConstraint(MultiConstraint::create($parsed, true));
+    }
+
+    /**
      * npm has no equivalent of a PHP/Laravel constraint (it declares a Node
      * "engines" range instead), so php_constraint/framework_constraint stay
      * null here and the compatibility verdict defaults to "compatible"
@@ -182,6 +250,7 @@ class FetchPackageDetailsJob implements ShouldQueue
             'php_constraint' => null,
             'framework_constraint' => null,
             'outdated_dependencies' => null,
+            'unreleased_changes' => null,
             'last_release_at' => $lastReleaseAt,
             'status' => $status,
             'downloads_total' => 0,

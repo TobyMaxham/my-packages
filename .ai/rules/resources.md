@@ -12,3 +12,6 @@ Public fields are a neutral fact list only: id, name, vendor, ecosystem, tags, d
 
 ## outdated_dependencies is admin-only and a hint, not a status
 `outdated_dependencies` (tracked composer deps whose constraint excludes their stored latest_version, computed in FetchPackageDetailsJob) is gated via `$this->when($isAuthenticated, ...)` like `status` — it is evaluative, so it must be absent for anonymous requests. It is deliberately a separate hint and must NOT change PackageStatus: the status answers "runs on the target PHP/Laravel versions?", this answers "pins an old release of one of our own packages?". The frontend shows it only inside `auth.isLoggedIn` blocks (PackageTable, PackageCard, PackageDetailModal).
+
+## unreleased_changes is admin-only and a hint, not a status
+`unreleased_changes` (PHP/Laravel constraints of the default branch differ from the latest release, i.e. a release is due; computed in FetchPackageDetailsJob from Packagist `p2/{name}~dev.json`, compared normalized so "^12|^13" equals "^12.0 || ^13.0") follows the same rules as `outdated_dependencies`: gated via `$this->when($isAuthenticated, ...)`, shown only inside `auth.isLoggedIn` blocks, and it must NOT change PackageStatus.

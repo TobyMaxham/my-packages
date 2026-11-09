@@ -113,6 +113,19 @@ function formatDate(value) {
                 </li>
               </ul>
             </div>
+
+            <div v-if="pkg.unreleased_changes?.length" class="alert alert-info mt-3 mb-0">
+              <div class="fw-semibold mb-1">
+                <i class="bi bi-tag-fill"></i> Release fällig: Default-Branch weicht vom letzten Release ab
+              </div>
+              <ul class="mb-0">
+                <li v-for="change in pkg.unreleased_changes" :key="change.type">
+                  {{ change.type === 'php' ? 'PHP' : 'Laravel' }}:
+                  Release <span class="pr-mono">{{ change.release ?? '—' }}</span>,
+                  Default-Branch <span class="pr-mono">{{ change.default_branch ?? '—' }}</span>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
