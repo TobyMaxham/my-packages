@@ -6,6 +6,7 @@ use App\Enums\Ecosystem;
 use App\Enums\PackageStatus;
 use Carbon\CarbonInterface;
 use Composer\Semver\Semver;
+use Composer\Semver\VersionParser;
 
 class CompatibilityChecker
 {
@@ -16,9 +17,10 @@ class CompatibilityChecker
     private const STALE_MONTHS = 12;
 
     /**
-     * A composer package without any Laravel constraint whose last release
-     * is older than this was most likely never checked against current
-     * Laravel versions, so "no constraint" is no longer read as "compatible".
+     * A composer package without a bounded Laravel constraint (none at all,
+     * or only open ones like ">=5.5") whose last release is older than this
+     * was most likely never checked against current Laravel versions, so it
+     * is no longer read as "compatible".
      */
     private const UNCONSTRAINED_MAX_AGE_YEARS = 3;
 
@@ -30,7 +32,7 @@ class CompatibilityChecker
      *   and looks unmaintained (no release in the last STALE_MONTHS).
      * - unclear: it misses a required version but was released recently;
      *   or it covers all required versions but has no tagged release, has
-     *   no Laravel constraint and a release older than
+     *   no bounded Laravel constraint and a release older than
      *   UNCONSTRAINED_MAX_AGE_YEARS (composer only), or misses a
      *   recommended version.
      * - compatible: it covers every required and recommended version.
@@ -70,7 +72,7 @@ class CompatibilityChecker
         }
 
         if ($ecosystem === Ecosystem::Composer
-            && $frameworkConstraints === []
+            && ! $this->hasUpperBound($frameworkConstraints)
             && $lastReleaseAt !== null
             && $lastReleaseAt->lessThan(now()->subYears(self::UNCONSTRAINED_MAX_AGE_YEARS))) {
             return PackageStatus::Unclear;
@@ -97,6 +99,30 @@ class CompatibilityChecker
         }
 
         return true;
+    }
+
+    /**
+     * Whether at least one constraint caps the allowed versions, e.g.
+     * "^12.0" or "9 - 11" — unlike ">=5.5" or "*", which allow any future
+     * major and therefore say nothing about real compatibility.
+     *
+     * @param  array<int, string>  $constraints
+     */
+    private function hasUpperBound(array $constraints): bool
+    {
+        $parser = new VersionParser;
+
+        foreach ($constraints as $constraint) {
+            try {
+                if (! $parser->parseConstraints($constraint)->getUpperBound()->isPositiveInfinity()) {
+                    return true;
+                }
+            } catch (\UnexpectedValueException) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function satisfies(string $targetVersion, ?string $constraint): bool

@@ -90,6 +90,15 @@ it('marks an old composer package without laravel constraints unclear', function
         ->and($checker->determine('>=5.5.9', [], false, now()->subYears(3)->addDay()))->toBe(PackageStatus::Compatible);
 });
 
+it('treats an open-ended laravel constraint on an old release like a missing one', function () {
+    freezeTime();
+
+    $checker = new CompatibilityChecker;
+
+    expect($checker->determine('>=5.5.9', ['>=5.5'], false, now()->subYears(4)))->toBe(PackageStatus::Unclear)
+        ->and($checker->determine('>=5.5.9', ['>=5.5', '^12.0|^13.0'], false, now()->subYears(4)))->toBe(PackageStatus::Compatible);
+});
+
 it('does not apply the missing-constraint age rule to npm packages', function () {
     freezeTime();
 
